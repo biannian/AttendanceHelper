@@ -1,0 +1,30 @@
+.venv/
+.idea/
+.pytest_cache/
+**/__pycache__/
+*.pyc
+
+# 本机口令、令牌和运行数据
+.env
+**/.env
+!**/.env.example
+config.json
+**/config.json
+!**/config.example.json
+*.log
+status.json
+cache.json
+history.json
+helper.db
+*.sqlite
+*.sqlite3
+access-token.txt
+
+windows/dist/
+windows/build/
+windows/release/
+windows/release-*/
+windows/logs/
+
+# 看板单独放在 desk_hub 仓库
+desk_hub/

@@ -1,0 +1,9 @@
+PySide6>=6.6.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+cryptography>=42
+comtypes>=1.4.0
+# 内置局域网看板与实时推送运行依赖。
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+websockets>=14,<18

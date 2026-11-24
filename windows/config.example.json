@@ -1,0 +1,62 @@
+{
+  "target_hours": 9,
+  "near_minutes": 20,
+  "remind_nodes_minutes": [60, 30, 20, 5, 0],
+  "overtime_remind_minutes": 30,
+  "display_mode": "near",
+  "far_display": "today_normal",
+  "company_name": "iGroup China",
+  "attendance": {
+    "api_base": "https://api.hikiot.com/api-attendance/v1/statistics/v2/individual/single/daily",
+    "id": "myStatic",
+    "app_no": "UNI__89A1A02"
+  },
+  "door": {
+    "api": "https://api.hikiot.com/api-visual/v1/team/team-info/oneClickOpenDoor",
+    "device_serial": "L40858918",
+    "app_no": "UNI__E32B021",
+    "authperm": "ACCESSSETUPFUN"
+  },
+  "low_freq_interval_seconds": 300,
+  "high_freq_interval_seconds": 60,
+  "high_freq_start_hour": 12,
+  "clock_in_poll_hour": 7,
+  "clock_in_poll_minute": 0,
+  "remind_stop_hour": 20,
+  "remind_stop_minute": 30,
+  "door_cooldown_seconds": 10,
+  "holiday_cache_hours": 12,
+  "ai": {
+    "base_url": "https://sh.igroupnet.com.cn:8443/ollama-api/v1/chat/completions",
+    "model": "qwen36-27b:latest",
+    "reasoning_effort": "none",
+    "enable_ai": true,
+    "enable_agent": true,
+    "enable_chat": true,
+    "enable_web_search": false,
+    "enable_read_file": false,
+    "agent_max_rounds": 5,
+    "chat_context_messages": 20,
+    "file_whitelist_dirs": [],
+    "search_endpoint": "",
+    "hotkey_chat": "Ctrl+Shift+A",
+    "chat_pin": false
+  },
+  "fun": {
+    "enable": true,
+    "pet_enable": true,
+    "pet": "shiba",
+    "persona": "secretary",
+    "card_mode": "puzzle",
+    "usage_link": true,
+    "woodfish_enable": true,
+    "woodfish_sound": false,
+    "salary_enable": false,
+    "hourly_rate": 0,
+    "salary_slack": true,
+    "salary_rest": true,
+    "salary_unknown": false,
+    "line_polish_minutes": 12,
+    "polish_reasoning_effort": "none"
+  }
+}
