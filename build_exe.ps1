@@ -1,4 +1,4 @@
-﻿# Copyright (c) iGroup. All rights reserved.
+# Copyright (c) iGroup. All rights reserved.
 # @author Kai @date 2026/10/26 10:43
 # @description 打包单 EXE 考勤助手及内置看板静态资源。
 # 打出单文件 exe（方便发给同事）以及目录版（IT 部署，冷启动更快）。
@@ -121,8 +121,10 @@ $commonArgs = @(
     "--hidden-import", "comtypes.client",
     "--hidden-import", "comtypes.gen.UIAutomationClient",
     "--collect-submodules", "comtypes.gen",
-    "--exclude-module", "PySide6.QtWebEngineCore",
-    "--exclude-module", "PySide6.QtWebEngineWidgets",
+    # 新设备滑块验证要嵌入网页，不能再排除 WebEngine。
+    "--hidden-import", "PySide6.QtWebChannel",
+    "--hidden-import", "PySide6.QtWebEngineCore",
+    "--hidden-import", "PySide6.QtWebEngineWidgets",
     "--exclude-module", "PySide6.QtWebEngineQuick",
     "--exclude-module", "PySide6.Qt3DCore",
     "--exclude-module", "PySide6.Qt3DRender",

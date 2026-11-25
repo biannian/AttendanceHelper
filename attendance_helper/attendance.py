@@ -1,11 +1,11 @@
-# Copyright (c) iGroup China.
+# Copyright (c) iGroup.
 # All rights reserved.
 """
 打卡摘要拉取与规范化。
 
 @author Kai
-@date 2026/07/23 15:25
-@description 工时按「上班打卡 → 当前时刻」计算
+@date 2026/11/25 10:46
+@description 当日倒计时与门禁打卡摘要，历史工时按考勤记录计算
 """
 
 from __future__ import annotations
@@ -32,7 +32,13 @@ import requests
 
 @dataclass
 class AttendanceSummary:
-    """当日打卡摘要。"""
+    """
+    打卡摘要及本地倒计时状态。
+
+    @author Kai
+    @date 2026/11/25 10:46
+    @description 为托盘和考勤统计提供工时与打卡状态
+    """
 
     ok: bool
     error: str = ""
@@ -57,6 +63,8 @@ class AttendanceSummary:
     required_seconds: int = 0
     # 是否来自本地历史缓存（今日不会为 True）
     cached: bool = False
+    # 当日接口返回的离场刷脸时间及状态，供修改请假后重新判断。
+    today_out_candidate: Optional[tuple[Optional[datetime], str]] = None
 
     @property
     def has_clock_in(self) -> bool:
@@ -230,10 +238,10 @@ def normalize_attendance(
 
     @param raw 接口原始 JSON
     @param now 当前时间（今日工时参照）
-    @param day_hint 查询日（历史日用工卡/日末估算工时）
+    @param day_hint 查询日（历史工时按打卡时段计算）
     @return AttendanceSummary
     @author Kai
-    @date 2026/07/23 17:15
+    @date 2026/11/25 10:46
     """
     date_str = (
         deep_pick(raw, ["date", "workDate", "attendanceDate", "statisticsDate"])
@@ -291,6 +299,23 @@ def normalize_attendance(
     leave_h = get_leave_hours(day_obj)
     required = effective_required_seconds(leave_h)
 
+    # 今日查询与托盘每秒刷新共用离场判断，避免短暂外出影响进行中状态。
+    if day_obj == now.date() and in_time is not None:
+        return live_tick_summary(
+            AttendanceSummary(
+                ok=True,
+                date=day_obj.isoformat(),
+                person_name=str(person_name),
+                in_time=in_time,
+                in_status=str(in_status),
+                daily_status=daily_status,
+                leave_hours=leave_h,
+                required_seconds=required,
+                today_out_candidate=(latest_out, str(out_status)),
+            ),
+            now,
+        )
+
     worked = 0
     remaining = 0
     target_time = None
@@ -298,28 +323,13 @@ def normalize_attendance(
 
     if in_time:
         target_time = in_time + timedelta(seconds=required)
-        # 倒计时/工时：今日按「现在」；历史日仅有下班卡才计工时（无卡不估到日末）
-        if day_obj < now.date():
-            ref = latest_out
-        elif day_obj > now.date():
-            ref = in_time
-        else:
-            ref = now
-        if ref is not None:
-            worked = max(0, int((ref - in_time).total_seconds()))
-        else:
-            worked = 0
+        # 历史工时按接口下班卡结算，未来日期保留零工时。
+        if day_obj < now.date() and latest_out is not None:
+            worked = max(0, int((latest_out - in_time).total_seconds()))
+            remaining = max(0, required - worked)
         reached = worked >= required if required > 0 else True
-        if not reached and day_obj <= now.date():
-            # 今日倒计时相对当前时间；历史日相对已算工时
-            if day_obj == now.date():
-                remaining = max(0, int((target_time - now).total_seconds()))
-            elif ref is not None:
-                remaining = max(0, required - worked)
-            else:
-                remaining = 0
 
-        # 有效考勤用工时：有下班卡则按打卡时段（含今日早退），与倒计时分离
+        # 日报有效性按接口打卡时段评估。
         if latest_out is not None:
             worked_for_validity = max(
                 0, int((latest_out - in_time).total_seconds())
@@ -735,43 +745,47 @@ def live_tick_summary(
     """
     基于上次接口结果，用本地时钟重算工时/倒计时（不访问接口）。
 
-    当日倒计时始终按「现在」推进；有效考勤提示若有下班卡则按打卡时段另算。
+    当日倒计时按当前时间推进，达到目标时刻后的离场刷脸才计为下班卡。
 
     @param base 接口返回的基准摘要（含上班时间、应出勤秒数）
     @param now 当前时间
     @return 刷新后的摘要副本
     @author Kai
-    @date 2026/09/01 10:15
+    @date 2026/11/25 10:46
     """
     now = now or datetime.now()
     if not base.ok or base.in_time is None:
         return base
 
     required = max(0, int(base.required_seconds))
-    # 当日倒计时逻辑不变：始终相对当前时间
+    # 根据首张上班卡和扣除请假后的应出勤时长计算目标。
     worked = max(0, int((now - base.in_time).total_seconds()))
     reached = worked >= required if required > 0 else True
     remaining = 0 if reached else max(0, required - worked)
     target_time = base.in_time + timedelta(seconds=required)
 
-    # 有效性：有下班卡用打卡时段，否则跟倒计时一致
-    if base.latest_out_time is not None:
-        worked_for_validity = max(
-            0, int((base.latest_out_time - base.in_time).total_seconds())
-        )
+    day = base.in_time.date()
+    candidate = base.today_out_candidate or (base.latest_out_time, base.out_status)
+    out_time, out_status = candidate
+    # 工作时段内的离场刷脸也可能来自短暂外出，仅接受目标时刻到现在之间的记录。
+    if day == now.date() and (
+        out_time is None or not target_time <= out_time <= now
+    ):
+        out_time, out_status = None, ""
+    if out_time is not None:
+        worked_for_validity = max(0, int((out_time - base.in_time).total_seconds()))
     else:
         worked_for_validity = worked
     reached_for_validity = (
         worked_for_validity >= required if required > 0 else True
     )
-    day = base.in_time.date()
     is_valid, tip = evaluate_attendance_validity(
         day=day,
         now=now,
         in_time=base.in_time,
-        out_time=base.latest_out_time,
+        out_time=out_time,
         in_status=base.in_status,
-        out_status=base.out_status,
+        out_status=out_status,
         daily_status=base.daily_status,
         target_reached=reached_for_validity,
         worked_seconds=worked_for_validity,
@@ -779,6 +793,9 @@ def live_tick_summary(
     )
     return replace(
         base,
+        latest_out_time=out_time,
+        out_status=out_status,
+        today_out_candidate=candidate,
         worked_seconds=worked,
         remaining_seconds=remaining,
         target_reached=reached,
